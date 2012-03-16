@@ -6,6 +6,7 @@
 <script src="libs/socket.io.min.js" type="text/javascript"></script>
 <script src="libs/jquery-1.7.2.min.js" type="text/javascript"></script>
 <script src="libs/json2.js" type="text/javascript"></script>
+<script src="libs/2.5.3-crypto-md5.js" type="text/javascript"></script>
 <script src="client2.js" type="text/javascript"></script>
 </head>
 <body>
@@ -13,11 +14,50 @@
 <h4>Connect</h4>
 <form>
 <table>
-<tr><td>Client name</td><td><input type="text" id="clientname" value="(client name)"/></td></tr>
-<tr><td>Group name</td><td><input type="text" id="clientg" value=""/></td></tr>
+<tr><td>Client ID</td><td><input type="text" id="clientid" value=""/></td></tr>
+<tr><td>Client name</td><td><input type="text" id="clientname" value="undefined"/></td></tr>
+<tr><td>Group name</td><td><input type="text" id="clientg" value="default"/></td></tr>
 <tr><td></td><td>
+<script type="text/javascript">
+	function setstate(state) {
+		$('#clientstate').html(state);
+	}
+	$(document).ready(function(){
+		$('.ifconnected').attr('disabled',true);
+		// bootstrap client id
+		var clientid = 'client'+(new Date()).getTime();
+		$('#clientid').val(clientid);
+	});
+	function connectcallback(ok, info) {
+		if (ok) {
+			setstate('Connected (' + JSON.stringify(info) + ')');
+			$('.ifconnected').removeAttr('disabled');
+		} else {
+			setstate('Error/disconnected (' + JSON.stringify(info) + ')');
+			$('.ifconnected').attr('disabled', true);
+		}
+
+	}
+	function valuecallback(value) {
+		// ...
+	}
+	function doConnect() {
+		$('#connectbutton').attr('disabled', true);
+		$('#disconnectbutton').attr('disabled', false);
+		var id = $('#clientid').val();
+		var name = $('#clientname').val();
+		var g = $('#clientg').val();
+		//$('#clientg').val('found '+g);
+		var log = $('#clientlog').attr('checked') ? true : false;
+		setstate('Connecting');
+		connect(id, name, g);
+	}
+	function doDisconnect() {
+		disconnect();
+	}
+</script>
 <input type="button" id='connectbutton' onclick="doConnect()" value="Connect"/>
-<input type="button" class='ifconnected' onclick="doDisconnect()" value="Disconnect"/>
+<input type="button" class='disconnectbutton' onclick="doDisconnect()" value="Disconnect"/>
 </td></tr>
 <tr><td>State</td><td id='clientstate'></td></tr>
 </table>
