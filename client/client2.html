@@ -78,7 +78,7 @@
 		var log = $('#clientlog').attr('checked') ? true : false;
 		//setstate('Connecting');
 		// id, name, group, initialsubscriptions, onnewreceiver2(name,state), onstatechange2(connstate)
-		connect(id, name, g, g, newreceiver, statechange);
+		connect('/', id, name, g, g, newreceiver, statechange);
 	}
 	function doDisconnect() {
 		$('#connectbutton').attr('disabled', false);
