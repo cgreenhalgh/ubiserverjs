@@ -91,17 +91,19 @@ function handlePeerNewReceiver(peer,senderid,state) {
 		var subrecv = p.receivers[SUBSCRIPTIONS];
 		if (subrecv!==undefined) 
 			subrecv.state.get(SENDERS,function(senders) {
-				var senderNames = senders.split(',');
-				var add = false;
-				for (var si in senderNames) {
-					var sn = senderNames[si];
-					if (senderid==sn) {
-						add = true;
-						break;
+				if (senders!==undefined) {
+					var senderNames = senders.split(',');
+					var add = false;
+					for (var si in senderNames) {
+						var sn = senderNames[si];
+						if (senderid==sn) {
+							add = true;
+							break;
+						}
 					}
-				}
-				if (add) {
-					addPeerSender(p,senderid,peer.id,state);
+					if (add) {
+						addPeerSender(p,senderid,peer.id,state);
+					}
 				}
 			});
 	}
@@ -135,13 +137,14 @@ function handlePeerInitSubscriptions(peer,subscriptionsReceiver) {
 			}
 			// add
 			for (var si in senderNames) {
+				var sn = senderNames[si];
 				for (var peerid in peers) {
 //					if (peerid==peer.id)
 //						continue;
 					var p = peers[peerid];
-					if (p.receivers[si]!==undefined) {
+					if (p.receivers[sn]!==undefined) {
 						// add this one
-						addPeerSender(peer,si,p.id,p.receivers[si].state);
+						addPeerSender(peer,sn,p.id,p.receivers[sn].state);
 					}
 				}
 			}

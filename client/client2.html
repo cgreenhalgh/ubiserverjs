@@ -29,18 +29,44 @@
 		var clientid = 'client'+(new Date()).getTime();
 		$('#clientid').val(clientid);
 	});
-	function connectcallback(ok, info) {
-		if (ok) {
-			setstate('Connected (' + JSON.stringify(info) + ')');
-			$('.ifconnected').removeAttr('disabled');
-		} else {
-			setstate('Error/disconnected (' + JSON.stringify(info) + ')');
-			$('.ifconnected').attr('disabled', true);
-		}
-
+	function statechange(info) {
+		setstate(info);
 	}
-	function valuecallback(value) {
-		// ...
+	
+	var keys=[];
+	var receivernames=[];
+	function toid(id) {
+		return id.replace('/','_');
+	}
+	function statechange(receivername,updates,timestamp,values) {
+		for (var key in updates) {
+			var ki = keys.indexOf(key);
+			if (ki<0) {
+				console.log('add key '+key);
+				keys.push(key);
+				$('#statetablehr').append('<th>'+key+'</th>');
+				// new key
+				for (var rni in receivernames) {
+					var rn = receivernames[rni];
+					var trname = toid('tr'+rn);
+					console.log('add cell '+trname+'/'+key+' to #'+trname);
+					$('#'+trname).append('<td id="'+trname+toid('/'+key)+'"></td>');
+				}
+			}
+			var trname = toid('tr'+receivername);
+			$('#'+trname+toid('/'+key)).text(JSON.stringify(updates[key]));
+		}
+	}
+	function newreceiver(name,state) {
+		console.log('newreceiver: '+name);
+		receivernames.push(name);
+		var trname = toid('tr'+name);
+		$('#statetable').append('<tr id="'+trname+'"><td>'+name+'</td><tr>');
+		for (var ki in keys) {
+			$('#'+trname).append('<td id="'+trname+toid('/'+keys[ki])+'"></td>');
+		}
+		state.onchange(function(updates,timestamp,values) { statechange(name,updates,timestamp,values); });
+		state.list(function(values,timestamp) { statechange(name,values,timestamp,values); });
 	}
 	function doConnect() {
 		$('#connectbutton').attr('disabled', true);
@@ -50,10 +76,13 @@
 		var g = $('#clientg').val();
 		//$('#clientg').val('found '+g);
 		var log = $('#clientlog').attr('checked') ? true : false;
-		setstate('Connecting');
-		connect(id, name, g);
+		//setstate('Connecting');
+		// id, name, group, initialsubscriptions, onnewreceiver2(name,state), onstatechange2(connstate)
+		connect(id, name, g, g, newreceiver, statechange);
 	}
 	function doDisconnect() {
+		$('#connectbutton').attr('disabled', false);
+		$('#disconnectbutton').attr('disabled', true);
 		disconnect();
 	}
 </script>
@@ -63,6 +92,10 @@
 <tr><td>State</td><td id='clientstate'></td></tr>
 </table>
 </form>
+<h4>State</h4>
+<table id='statetable' border='1' width='100%'>
+<tr id='statetablehr'><th>Name</th></tr>
+</table>
 <h4>Messages</h4>
 <table id='responsetable' border='1' width='100%'>
 <tr><th>Direction</th><th>Message</th><th>Arguments</th></tr>

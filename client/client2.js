@@ -34,9 +34,22 @@ var SENDERS = 'senders';
 var subscriptions= new ubistate.State;
 peer.senders[SUBSCRIPTIONS] = subscriptions.sender('server');
 
+var onnewreceiver;
+var onstatechange;
 
 //=============================================================================
 // util stuff
+
+function callonstatechange(state) {
+	if (onstatechange!==undefined) {
+		try {
+			onstatechange(state);
+		}
+		catch (err) {
+			console.log('Error in onstatechange: '+err.message);
+		}
+	}
+}
 
 //redefine for different logging
 var logmessage = function(direction,message,arguments) {
@@ -82,6 +95,7 @@ function connect_socketio(device, peer) {
 	// Note: if the initial handshake fails then we don't get any event back - we'd just have to 
 	// set a timeout for the lack of connecting.
 	console.log('connect_socketio...');
+	
 	var socket = io.connect('http://:49891', { transports: [ 'jsonp-polling' ], // 'websocket'
 		reconnect: false, 'connect timeout': 10000, 'force new connection':true });
 	peer.socket = socket;
@@ -164,6 +178,11 @@ function connect_socketio(device, peer) {
 		peer.retryTimeout = setTimeout(function() {
 			connect_socketio(device, peer);
 		}, RETRY_TIMEOUT)
+		
+		if (peer.id===undefined)
+			callonstatechange('connecting');
+		else
+			callonstatechange('reconnecting');
 	});
 	socket.on('reconnect', function(transport_type,reconnectionAttempts) {
 		logmessage('Event','reconnect',{transport_type:transport_type,reconnectionAttempts:reconnectionAttempts});
@@ -198,11 +217,13 @@ function connect_socketio(device, peer) {
 						logmessage('Send', 'sender', msg);
 					});
 				}
+				callonstatechange('connected');
 			}
 			else if (msg.type=='resp_peer_known') {
 				// id, name, challenge1resp, challenge2
 				// but in this case we should have sent init_confirm !
-				
+				conole.log('resp_peer_known needs to be handled!!');
+				disconnect();
 			}
 			else if (msg.type=='reject') {
 				console.log('state STATE_PEER_REQ/CONFIRM_UNTRUSTED rejected: '+msg.message);
@@ -233,6 +254,16 @@ function connect_socketio(device, peer) {
 					}
 					receiver = new ubistate.Receiver;
 					peer.receivers[msg.sender] = receiver;
+					
+					if (onnewreceiver!==undefined) {
+						try {
+							onnewreceiver(msg.sender,receiver.state);
+						}
+						catch (err) {
+							console.log('error in onnewreceiver: '+err.message);
+						}
+						
+					}
 				}
 				var ackmsg = receiver.received(msg.msg);
 				if (ackmsg!=null) {
@@ -260,8 +291,15 @@ function connect_socketio(device, peer) {
 }
 
 
-// called to initiate (high-level) connectivity to server
-function connect(id, name, group) {
+/** called to initiate (high-level) connectivity to server
+ * @param id device ID
+ * @param name device name
+ * @param group device group name
+ * @param initialsubscriptions comma-separated list of senders (groups) to subscribe to initial
+ * @param onnewreceiver2 callback when new receiver (state) found, arguments (name,state)
+ * @param onstatechange callback when connection state changes, arguments (connstatename)
+ */
+function connect(id, name, group, initialsubscriptions, onnewreceiver2, onstatechange2) {
 	// old connection?
 	disconnect();
 	peer.known = false;
@@ -280,12 +318,35 @@ function connect(id, name, group) {
 	peer.senders[group] = clientState.sender('server');
 	
 	// subscribe to GROUP
-	subscriptions.set(SENDERS,group);
+	subscriptions.set(SENDERS,initialsubscriptions);
 	subscriptions.get(SENDERS,function(value) {
 		console.log('Initial value of SENDERS is '+value);
 	})
 	
+	onnewreceiver = onnewreceiver2;
+	onstatechange = onstatechange2;
+	
+	callonstatechange('connecting');
+	
 	connect_socketio(device, peer);
+}
+
+function getsenderstate(name) {
+	if (name===undefined)
+		return clientState;
+	var sender = peer.senders[name];
+	if (sender!==undefined)
+		return sender.state;
+	return undefined;
+}
+
+function getreceiverstate(name) {
+	if (name===undefined)
+		return undefined;
+	var receiver = peer.receivers[name];
+	if (receiver===undefined)
+		return undefined;
+	return receiver.state;
 }
 
 function disconnect() {
@@ -295,5 +356,6 @@ function disconnect() {
 	}
 	clearTimeout(peer.connectTimeout);
 	clearTimeout(peer.retryTimeout);
+	callonstatechange('disconnected');
 }
 
