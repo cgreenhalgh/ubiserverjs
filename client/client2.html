@@ -36,7 +36,7 @@
 	var keys=[];
 	var receivernames=[];
 	function toid(id) {
-		return id.replace('/','_');
+		return id.replace(/[/]/g,'_').replace(/[\.]/g,'_');
 	}
 	function statechange(receivername,updates,timestamp,values) {
 		for (var key in updates) {

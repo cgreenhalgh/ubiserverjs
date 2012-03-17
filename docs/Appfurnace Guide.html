@@ -5,7 +5,8 @@
 <title>Using ubiserver in AppFurnace</title>
 </head>
 <body>
-<h1>Using ubiserver in AppFurnace</h1>
+<h1>Using ubiserver version 1 in AppFurnace</h1>
+<p>Note: ubiserver version 2 has a different API and slightly more complex set-up</p>
 <p>You will need to load socket.io first, and only when it has loaded start the client, e.g.<p>
 <pre>function addScriptFile(src, callback) {
     var script = document.createElement("script");
@@ -21,6 +22,7 @@ addScriptFile("http://teaching.cs.nott.ac.uk:49891/client/libs/socket.io.min.js"
     	// loaded...
     });
 </pre>
+<p>You can also upload the javascript files to your app, in which case the path for addScriptFile is "content/PATH", where PATH is the path reported in the Files tab in AppFurnace for the uploaded file.</p>
 <p>You can use the simple client utilities in <a href="appfurnace.js">appfurnace.js</a>, including:</p>
 <pre>function connect(clientname,group,log,connectcallback,valuecallback)
 function set(name [string], value [whatever], persistent [0|1], subclientid [undefined|''|'...'], echo [0|1]) 
@@ -34,5 +36,7 @@ required.</p>
 <p>I can't guarantee that the server on <a href="http://teaching.cs.nott.ac.uk:49891">http://teaching.cs.nott.ac.uk:49891</a> 
 will be available at all times, especially over the vacation. So you should also consider setting up and using your own
 instance from the sourcecode - <a href="https://github.com/cgreenhalgh/ubiserverjs">https://github.com/cgreenhalgh/ubiserverjs</a></p>
+<h1>Using ubiserver 2 in AppFurnace</h1>
+<p>For now, here is some sample code...<a href="appfurnace2.js">appfurnace2.js</a>. The required Javascript files (socket.io.min.js, 2.5.3-crypto-md5.js, ubistate.js and client2.js) can be found in ../client/ and ../client/libs/</p>
 </body>
 </html>

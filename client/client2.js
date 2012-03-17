@@ -302,7 +302,7 @@ function connect_socketio(url, device, peer) {
  */
 function connect(url, id, name, group, initialsubscriptions, onnewreceiver2, onstatechange2) {
 	// old connection?
-	disconnect();
+	disconnectinternal();
 	peer.known = false;
 	// ...
 	logmessage('Action','connect',{id:id,name:name,group:group});
@@ -351,13 +351,16 @@ function getreceiverstate(name) {
 	return receiver.state;
 }
 
-function disconnect() {
+function disconnectinternal() {
 	if (peer.socket!==undefined) {
 		peer.socket.disconnect();
 		logmessage('Sent', 'disconnect');
 	}
 	clearTimeout(peer.connectTimeout);
 	clearTimeout(peer.retryTimeout);
+}
+function disconnect() {
+	disconnectinternal();
 	callonstatechange('disconnected');
 }
 
