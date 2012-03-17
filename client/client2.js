@@ -99,13 +99,17 @@ function connectPeerSender(sender,senderid,socket) {
 }
 
 
-function connect_socketio(url, device, peer) {
+function connect_socketio(url, device, peer, transports) {
 	// Note: don't reconnect at the socket.io level - we'll do it at a higher level
 	// Note: if the initial handshake fails then we don't get any event back - we'd just have to 
 	// set a timeout for the lack of connecting.
 	console.log('connect_socketio '+url);
 	
-	var socket = io.connect(url, { transports: [ 'jsonp-polling' ], // 'websocket'
+	if (transports===undefined)
+		transports = [ 'websocket', 'xhr-polling', 'jsonp-polling' ];
+	// Hmm. jsonp needed on simulator for CSR but can lead to Application Error when timed out on
+	// player. May be safer with real device to use another option!
+	var socket = io.connect(url, { transports: transports, // 'websocket'
 		reconnect: false, 'connect timeout': 10000, 'force new connection':true });
 	peer.socket = socket;
 	peer.connected = false;
@@ -116,7 +120,7 @@ function connect_socketio(url, device, peer) {
 		logmessage('Event','connect timeout');
 		socket.disconnect();
 		peer.retryTimeout = setTimeout(function() {
-			connect_socketio(url, device, peer);
+			connect_socketio(url, device, peer, transports);
 		}, RETRY_TIMEOUT)
 	}, CONNECT_TIMEOUT);
 	
@@ -193,7 +197,7 @@ function connect_socketio(url, device, peer) {
 			sender.disconnected();
 		}
 		peer.retryTimeout = setTimeout(function() {
-			connect_socketio(url, device, peer);
+			connect_socketio(url, device, peer, transports);
 		}, RETRY_TIMEOUT)
 		
 		if (peer.id===undefined)
@@ -317,8 +321,9 @@ function connect_socketio(url, device, peer) {
  * @param initialsubscriptions comma-separated list of senders (groups) to subscribe to initial
  * @param onnewreceiver2 callback when new receiver (state) found, arguments (name,state)
  * @param onstatechange callback when connection state changes, arguments (connstatename)
+ * @parma transports array of socket.io transports to use (default if undefined to websocket, xhr-polling and jsonp-polling)
  */
-function connect(url, id, name, group, initialsubscriptions, onnewreceiver2, onstatechange2) {
+function connect(url, id, name, group, initialsubscriptions, onnewreceiver2, onstatechange2, transports) {
 	// old connection?
 	disconnectinternal();
 	peer.known = false;
@@ -348,7 +353,7 @@ function connect(url, id, name, group, initialsubscriptions, onnewreceiver2, ons
 	
 	callonstatechange('connecting');
 	
-	connect_socketio(peer.url, device, peer);
+	connect_socketio(peer.url, device, peer, transports);
 }
 
 function getsenderstate(name) {
