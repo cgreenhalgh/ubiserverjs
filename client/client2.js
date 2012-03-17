@@ -17,7 +17,7 @@ var device = new Object;
 var peer = new Object;
 
 
-var CONNECT_TIMEOUT = 5000;
+var CONNECT_TIMEOUT = 10000;
 // states
 var STATE_NEW = 1;
 var STATE_PEER_REQ = 2;
@@ -121,6 +121,10 @@ function connect_socketio(url, device, peer) {
 	}, CONNECT_TIMEOUT);
 	
 	socket.on('connect', function() {
+		if (socket!==peer.socket) {
+			console.log('ignore connect for old/wrong socket');
+			return;
+		}
 		logmessage('Event','connect');
 		// cancel connect timeout
 		if (peer.connectTimeout!==undefined) {
@@ -177,6 +181,10 @@ function connect_socketio(url, device, peer) {
 	});
 	// called when disconnect called or detected
 	socket.on('disconnect', function() {
+		if (socket!==peer.socket) {
+			console.log('ignore disconnect for old/wrong socket');
+			return;
+		}
 		logmessage('Event','disconnect','');
 		peer.connected = false;
 		delete peer.socket;
@@ -203,6 +211,10 @@ function connect_socketio(url, device, peer) {
 		logmessage('Event','reconnect_failed','');
 	});
     socket.on('message', function (msg) {
+		if (socket!==peer.socket) {
+			console.log('ignore message for old/wrong socket');
+			return;
+		}
 		logmessage('Recv','message',msg);
 		if (peer.connstate==STATE_PEER_REQ || peer.connstate==STATE_CONFIRM_UNTRUSTED) {
 			if (msg.type=='resp_peer_nopin') {
