@@ -23,6 +23,9 @@ var STATE_NEW = 1;
 var STATE_PEER_REQ = 2;
 var STATE_PEERED = 3;
 
+// auto-shared client state
+var clientState = new ubistate.State;
+
 //=============================================================================
 // util stuff
 
@@ -129,6 +132,8 @@ function connect_socketio(device, peer) {
 		logmessage('Event','disconnect','');
 		peer.connected = false;
 		delete peer.socket;
+		if (peer.sender!==undefined)
+			peer.sender.disconnected();
 	});
 	socket.on('reconnect', function(transport_type,reconnectionAttempts) {
 		logmessage('Event','reconnect',{transport_type:transport_type,reconnectionAttempts:reconnectionAttempts});
@@ -144,11 +149,23 @@ function connect_socketio(device, peer) {
 		if (peer.connstate==STATE_PEER_REQ) {
 			if (msg.type=='resp_peer_nopin') {
 				// id, name, info? secret
+				if (msg.id===undefined || msg.name===undefined || msg.secret===undefined) {
+					console.log('incomplete resp_peer_nopin message ('+JSON.stringify(msg)+')');
+					socket.disconnect();
+					return;
+				}
 				peer.id = msg.id;
 				peer.name = msg.name;
 				peer.secret = msg.secret;
 				peer.connstate = STATE_PEERED;
 				console.log('Now peered with id='+peer.id+', name='+peer.name);
+				peer.known = true;
+				peer.sender = clientState.sender(peer.id);
+				peer.sender.connected(function(sendermsg) {
+					var msg = {type: 'sender', sender: 'default', msg: sendermsg};
+					socket.json.send(msg);
+					logmessage('Send', 'sender', msg);
+				});
 			}
 			else if (msg.type=='resp_peer_known') {
 				// id, name, challenge1resp, challenge2
@@ -161,6 +178,17 @@ function connect_socketio(device, peer) {
 				return;
 			}
 
+		}
+		else if (peer.connstate==STATE_PEERED) {
+			if (msg.type=='sender') {
+				// sender, msg
+				if (msg.sender===undefined || msg.msg===undefined) {
+					console.log('incomplete sender message ('+JSON.stringify(msg)+')');
+					socket.disconnect();
+					return;
+				}
+				// TODO
+			}
 		}
     });
     
@@ -177,6 +205,12 @@ function connect(id, name, group) {
 	device.id = id;
 	device.name = name;
 	device.group = group;
+	
+	clientState.begin();
+	clientState.set('id',id);
+	clientState.set('name',name);
+	clientState.set('group',group);
+	clientState.end();
 	
 	connect_socketio(device, peer);
 }

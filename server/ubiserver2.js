@@ -17,6 +17,9 @@ var connect = require('connect'),
 
 var Crypto = (require ('cryptojs')).Crypto;
 
+// state utils - shared with client
+var ubistate = require('../client/ubistate.js');
+
 // set up the connect bit, e.g. static pages
 var app = connect()
 	// serve the client code from /client/...
@@ -43,7 +46,6 @@ var nextConn = 1;
 
 var STATE_NEW = 1;
 var STATE_PEERED = 2;
-var STATE_KNOWN_CHALLENGED = 3;
 
 var version = 1;
 
@@ -74,6 +76,12 @@ io.sockets.on('connection', function(socket) {
 				socket.disconnect();
 				return;
 			}
+			if (msg.pindigest===undefined || msg.id===undefined || msg.name===undefined) {
+				console.log('incomplete init_peer_req message ('+JSON.stringify(msg)+')');
+				socket.json.send({type:'reject',reason:'protocol_error',message:'Incomplete init_peer_req message'});
+				socket.disconnect();
+				return;
+			}
 			var peer = peers[msg.id];
 			if (peer===undefined) {
 				// new peer - return resp_peer_nopin
@@ -83,10 +91,11 @@ io.sockets.on('connection', function(socket) {
 				peer.name = msg.name;
 				// needs secret
 				peer.secret = Crypto.util.randomBytes(8);
-				peer.state = STATE_PEERED;
+				peer.state = conn.state = STATE_PEERED;
 				peer.serverid = serverid;
 				// add to peers
 				peers[peer.id] = peer;
+				conn.peer = peer;
 				// TODO: timeout/soft state?
 				// also: port, info
 				var resp = { type: 'resp_peer_nopin', id: device.id, name: device.name,
@@ -126,6 +135,18 @@ io.sockets.on('connection', function(socket) {
 */				return;				
 			}
 		}
+		else if (conn.state==STATE_PEERED) {
+			if (msg.type=='sender') {
+				// sender, msg
+				if (msg.sender===undefined || msg.msg===undefined) {
+					console.log('incomplete sender message ('+JSON.stringify(msg)+')');
+					socket.disconnect();
+					return;
+				}
+				// TODO
+				console.log('sender message '+JSON.stringify(msg));
+			}
+		}
 		// ...
 	});
 
@@ -135,3 +156,22 @@ io.sockets.on('connection', function(socket) {
 	});
 });
 
+//======================================================================
+// a few state tests
+
+function ubistateTests() {
+	console.log('State tests...');
+	var s = new ubistate.State;
+	s.set('a',1);
+	s.set('b',2);
+	s.get('a', function(a) { 
+		console.log('a='+a); 
+	});
+	s.list(function(vs) { 
+		console.log('list:');
+		for (var k in vs) { 
+			console.log('  '+k+'='+vs[k]);
+		}
+	});
+}
+ubistateTests();
