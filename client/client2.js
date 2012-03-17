@@ -90,6 +90,15 @@ function getPinDigest(nonce, pin) {
 
 var RETRY_TIMEOUT = 10000;
 
+function connectPeerSender(sender,senderid,socket) {
+	sender.connected(function(sendermsg) {
+		var msg = {type: 'sender', sender: senderid, msg: sendermsg};
+		socket.json.send(msg);
+		logmessage('Send', 'sender', msg);
+	});
+}
+
+
 function connect_socketio(url, device, peer) {
 	// Note: don't reconnect at the socket.io level - we'll do it at a higher level
 	// Note: if the initial handshake fails then we don't get any event back - we'd just have to 
@@ -211,11 +220,8 @@ function connect_socketio(url, device, peer) {
 				peer.known = true;
 				for (var senderid in peer.senders) {
 					var sender = peer.senders[senderid];
-					sender.connected(function(sendermsg) {
-						var msg = {type: 'sender', sender: senderid, msg: sendermsg};
-						socket.json.send(msg);
-						logmessage('Send', 'sender', msg);
-					});
+					// mustn't create closure in loop!
+					connectPeerSender(sender,senderid,socket);
 				}
 				callonstatechange('connected');
 			}

@@ -198,7 +198,8 @@
 		for (key in this.statenotsent)
 			send[key] = this.statenotsent[key];
 		// move all to stateawaitingack
-		var ackid = this.nextackid++;
+		// had trouble with unknown ackid - try as string
+		var ackid = new String(this.nextackid++);
 		this.statenotsent = {};
 		this.statenoack = {};
 		this.stateawaitingack[ackid] = send;

@@ -36,7 +36,7 @@
 	var keys=[];
 	var receivernames=[];
 	function toid(id) {
-		return id.replace(/[/]/g,'_').replace(/[\.]/g,'_');
+		return id.replace(/[/]/g,'_').replace(/[\.]/g,'_').replace(/[\:]/g,'_');
 	}
 	function statechange(receivername,updates,timestamp,values) {
 		for (var key in updates) {
@@ -92,6 +92,21 @@
 <tr><td>State</td><td id='clientstate'></td></tr>
 </table>
 </form>
+<table>
+<tr><td>Name</td><td><input type="text" id="setname" value=""/></td></tr>
+<tr><td>Value</td><td><input type="text" id="setvalue" value=""/></td></tr>
+<tr><td></td><td><input type="button" id='setvalue' onclick="doSet()" value="Set"/>
+</td></tr>
+</table>
+<script type="text/javascript">
+function doSet() {
+	var state = getsenderstate();
+	var name = $('#setname').val();
+	var value = $('#setvalue').val();
+	state.set(name,value);
+	console.log('Set '+name+'='+value);
+}
+</script>
 <h4>State</h4>
 <table id='statetable' border='1' width='100%'>
 <tr id='statetablehr'><th>Name</th></tr>
