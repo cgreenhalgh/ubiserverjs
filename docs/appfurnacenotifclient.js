@@ -41,7 +41,7 @@ function onChannelValue(name, value) {
         var scan = [];
         for (var di in value.devices) {
             var d = value.devices[di];
-            scan.push(d.name);
+            scan.push(d.btaddress);
             //state.set('bt.'+d.btaddress,{name:d.name,time:time});            
         }
         state.set('btscan',{time:time,macs:scan});
@@ -180,14 +180,18 @@ function onConfig() {
     var id = 'appfurnace.'+ui.configdevicename.text()+'.'+(new Date().getTime());
     var group = ui.configgroupname.text();
     var name = ui.configdevicename.text();
-    connect('http://kubrick.mrl.nott.ac.uk:49891', id, name, group, group+'.public', undefined, onstatechange);
+    var transports;
+    //if (device===undefined || device.platform===undefined)
+        // simulator
+    //    transports = ['jsonp-polling'];
+    connect('http://kubrick.mrl.nott.ac.uk:49891', id, name, group, group+'.public', undefined, onstatechange, transports);
 }
 
 addScriptFile("content/socket.io.min.js", 
     function() {
         log('content/loaded socket.io: '+io);
         //io.Socket.prototype.isXDomain = function () { console.log('isXDomain'); return true; };
-        //io.util.ua.hasCORS = false; 
+        //.util.ua.hasCORS = false; 
         addScriptFile("content/2.5.3-crypto-md5.js", 
             function() {
                 log('content/loaded cryptojs');
