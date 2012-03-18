@@ -244,7 +244,7 @@
 				if (timestamp!==undefined) {
 					if (empty(this.stateawaitingack) && empty(this.statenoack)) {
 						console.log('know that received '+timestamp);
-						this.stateknown[timestamp] = timestamp;
+						this.stateknown[TIMESTAMP] = timestamp;
 					}
 				}
 				docheck = true;
