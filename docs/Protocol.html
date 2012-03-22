@@ -1,0 +1,80 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+<title>Ubiserver Protocol</title>
+</head>
+<body>
+<h1>Ubiserver Protocol</h1>
+<p>The transport is socket.io. In general socket.io transfers messages with a string name/type and JSON-encoded object as argument(s).</p>
+<p>The client initiates connection to the server which is signaled as a 'connection' event/message. 
+Each client has a client ID allocated by the server which is unique at least for current clients of that server.</p>
+<p>The client sends an initial message with type 'ubiserver.newclient':</p>
+<pre>{
+	version: 1,
+	name: 'CLIENT-PROVIDED-NAME',
+	g: 'DEFAULT-GROUP-NAME',
+	(log: 0 (default) | 1)
+}</pre>
+<p>The log argument specifies whether the client is happy for the server to log its messages, e.g. for subsequent replay/analysis; 0=no, 1=yes.</p>
+<p>The server replies with a message of type 'ubiserver.welcome':</p>
+<pre>{
+	version: 1,
+	name: 'SERVER-NAME',
+	c: 'ALLOCATED-CLIENT-ID'
+}</pre>
+<p>If the server wishes to reject the client, e.g. because the protocol version is incompatible, 
+then it will send a message of type 'ubiserver.reject':</p>
+<pre>{
+	version: 1,
+	name: 'SERVER-NAME',
+	reason: 'REJECTION-REASON',
+}</pre>
+<p>The client sends a value/event to the server using message type 's' (set):</p>
+<pre>{
+	n: 'NAME',
+	v: JSON-VALUE,
+	(p: 0 (default)| 1),
+	(c: 'SUB-CLIENT-ID')
+}</pre>
+<p>The NAME is effectively a variable, event type or message channel name.</p>
+<p>The VALUE can be any JSON-encodable value.</p>
+<p>The optional 'p' element specifies the persistence of the value; initial values are '0' = not persistent, i.e. pure event, 
+and '1' = in-memory persistent, i.e. shared variable lost on server restart. </p>
+<p>The optional 'c' element specifies a client/scope 
+for the value. If omitted the scope is the whole group, i.e. the NAME identifies a single variable shared by all clients 
+in this group. 
+If a 'c' element is specified then the scope is the current client (ALLOCATED-CLIENT-ID), 
+further scoped by the specified SUB-CLIENT-ID. 
+A scope of '' is the current client (ALLOCATED-CLIENT-ID), i.e. a variable assocated with this particular client (and deleted
+when this client disconnects). A scope of (for example) 'abc' is a sub-scope of the current client (ALLOCATED-CLIENT-ID/abc); 
+this can be useful
+if a client is replaying events from a number of other clients (each represented by a different SUB-CLIENT-ID).</p>
+<p>The server sends a value to a client (e.g. in response to a get) using a 'v' (value) message:</p>
+<pre>{
+	n: 'NAME',
+	(c: 'CLIENT-ID',)
+	(g: 'GROUP-ID',)
+	v: VALUE,
+	t: SERVER-TIMESTAMP
+}</pre>
+<p></p>
+<p>The 'c' element is omitted for group variables/channels.</p>
+<p>The SERVER-TIMESTAMP is a long Java-style timestamp, i.e. ms since the UNIX epoch</p>
+<p>A client can register to receive notifications of new/existing values using a 'j' (join) message:</p>
+<pre>{
+	n: 'NAME-PATTERN',
+	(p: 0 | 1)
+}</pre>
+<p>NAME-PATTERN is a regular expression, matched against value NAMEs.</p>
+<p>The optional 'p' element specifies whether existing persistent values should also be returned initially.
+Supported values are '0' = do not return existing persistent value, 
+and '1' = return existing in-memory persistent values. Note that the 'p' value of the join does not affect
+whether subsequent sets are returned (they are whether irrespective of their 'p' value).</p>
+<p>A client withdraws a previous registrations for notifications using a 'l' (leave) message:</p>
+<pre>{
+	n: 'NAME-PATTERN'
+}</pre>
+<p>The NAME-PATTERN must exactly match the NAME-PATTERN used in the 'j' message.</p>
+</body>
+</html>
