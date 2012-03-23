@@ -34,8 +34,9 @@ then it will send a message of type 'ubiserver.reject':</p>
 <pre>{
 	n: 'NAME',
 	v: JSON-VALUE,
-	(p: 0 (default)| 1),
-	(c: 'SUB-CLIENT-ID')
+	(p: 0 (default)| 1,)
+	(c: 'SUB-CLIENT-ID',)
+	(e: 0 (default)| 1)
 }</pre>
 <p>The NAME is effectively a variable, event type or message channel name.</p>
 <p>The VALUE can be any JSON-encodable value.</p>
@@ -50,6 +51,8 @@ A scope of '' is the current client (ALLOCATED-CLIENT-ID), i.e. a variable assoc
 when this client disconnects). A scope of (for example) 'abc' is a sub-scope of the current client (ALLOCATED-CLIENT-ID/abc); 
 this can be useful
 if a client is replaying events from a number of other clients (each represented by a different SUB-CLIENT-ID).</p>
+<p>The optional 'e' element specifies whether the value should be echoed back to the originating client. This is not normally 
+required, but can be useful if the client needs a globally consistent ordering of (e.g.) variable updates.</p>
 <p>The server sends a value to a client (e.g. in response to a get) using a 'v' (value) message:</p>
 <pre>{
 	n: 'NAME',

@@ -4,9 +4,113 @@
 <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 <title>Ubiserver client</title>
 <script src="libs/socket.io.min.js" type="text/javascript"></script>
+<script src="libs/jquery-1.7.2.min.js" type="text/javascript"></script>
+<script src="client.js" type="text/javascript"></script>
 </head>
 <body>
 <h1>Ubiserver client</h1>
-<script src="client.js" type="text/javascript"></script>
+<h4>Connect</h4>
+<form>
+<table>
+<tr><td>Client name</td><td><input type="text" id="clientname" value="(client name)"/></td></tr>
+<tr><td>Group name</td><td><input type="text" id="clientg" value=""/></td></tr>
+<tr><td>Log</td><td><input type="checkbox" id="clientlog"/></td></tr>
+<script type="text/javascript">
+	function setstate(state) {
+		$('#clientstate').html(state);
+	}
+	$(document).ready(function(){
+		$('.ifconnected').attr('disabled',true);
+	});
+	function connectcallback(ok, info) {
+		if (ok) {
+			setstate('Connected (' + JSON.stringify(info) + ')');
+			$('.ifconnected').removeAttr('disabled');
+		} else {
+			setstate('Error/disconnected (' + JSON.stringify(info) + ')');
+			$('.ifconnected').attr('disabled', true);
+		}
+
+	}
+	function valuecallback(value) {
+		// ...
+	}
+	function doConnect() {
+		$('#connectbutton').attr('disabled', true);
+		var name = $('#clientname').val();
+		var g = $('#clientg').val();
+		//$('#clientg').val('found '+g);
+		var log = $('#clientlog').attr('checked') ? true : false;
+		setstate('Connecting');
+		connect(name, g, log, connectcallback, valuecallback);
+	}
+	function doDisconnect() {
+		disconnect();
+	}
+</script>
+<tr><td></td><td>
+<input type="button" id='connectbutton' onclick="doConnect()" value="Connect"/>
+<input type="button" class='ifconnected' onclick="doDisconnect()" value="Disconnect"/>
+</td></tr>
+<tr><td>State</td><td id='clientstate'></td></tr>
+</table>
+</form>
+<h4>Commands</h4>
+<form>
+<table>
+<tr><td>Name/pattern (sjl)</td><td><input type="text" id="cmdn" value=""/></td></tr>
+<tr><td>Persistent (sj)</td><td><input type="checkbox" id="cmdp"/></td></tr>
+<tr><td>Value (s)</td><td><input type="text" id="cmdv" value=""/></td></tr>
+<tr><td>Echo (s)</td><td><input type="checkbox" id="cmde"/></td></tr>
+<tr><td>Client-specific (s)</td><td><input type="checkbox" id="cmdcflag"/></td></tr>
+<tr><td>Sub-client (s)</td><td><input type="text" id="cmdc" value=""/></td></tr>
+<script type="text/javascript">
+	function doSet() {
+		var n = $('#cmdn').val();
+		var v = null;
+		var sval = new String($('#cmdv').val());
+		try {
+			if (sval.length==0)
+				v = undefined;
+			else
+				v = JSON.parse(sval);
+		}
+		catch (e) {
+			alert('Value not well-formed ('+sval+'): '+e.message);
+			return;
+		}
+		var c = ($('#cmdcflag').attr('checked')) ? $('#cmdc').val() : undefined;
+		var e = ($('#cmde').attr('checked')) ? 1 : undefined;
+		var p = ($('#cmdp').attr('checked')) ? 1 : undefined;
+		set(n, v, p, c, e);
+	}
+	function doJoin() {
+		var n = $('#cmdn').val();
+		var p = ($('#cmdp').attr('checked')) ? 1 : undefined;
+		join(n, p);
+	}
+	function doLeave() {
+		var n = $('#cmdn').val();
+		leave(n);
+	}
+</script>
+<tr><td></td><td><input type="button" class='ifconnected' onclick="doSet()" value="Set"/>
+<input type="button" class='ifconnected' onclick="doJoin()" value="Join"/>
+<input type="button" class='ifconnected' onclick="doLeave()" value="Leave"/>
+</td></tr>
+</table>
+</form>
+<h4>Messages</h4>
+<table id='responsetable' border='1' width='100%'>
+<tr><th>Direction</th><th>Message</th><th>Arguments</th></tr>
+</table>
+<script type="text/javascript">
+// redefine logmessage
+var oldlogmessage = logmessage;
+logmessage = function(direction,message,arguments) {
+	oldlogmessage(direction,message,arguments);
+	$('#responsetable').prepend('<tr><td>'+direction+'</td><td>'+message+'</td><td>'+JSON.stringify(arguments)+'</td></tr>');
+}
+</script>
 </body>
 </html>
