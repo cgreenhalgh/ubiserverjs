@@ -10,20 +10,9 @@
 <pre>function addScriptFile(src, callback) {
     var script = document.createElement("script");
     script.type = "text/javascript";
-
-    if (script.readyState){  //IE
-        script.onreadystatechange = function(){
-            if (script.readyState == "loaded" ||
-                    script.readyState == "complete"){
-                script.onreadystatechange = null;
-                callback();
-            }
-        };
-    } else {  //Others
-        script.onload = function(){
-            callback();
-        };
-    }
+    script.onload = function() {
+        callback();
+    };
     script.src = src;
     window.document.body.appendChild(script);
 }
@@ -32,7 +21,7 @@ addScriptFile("http://teaching.cs.nott.ac.uk:49891/client/libs/socket.io.min.js"
     	// loaded...
     });
 </pre>
-<p>You can use the simple client utilities in <a href="../client/client.js">client.js</a>, including:</p>
+<p>You can use the simple client utilities in <a href="appfurnace.js">appfurnace.js</a>, including:</p>
 <pre>function connect(clientname,group,log,connectcallback,valuecallback)
 function set(name [string], value [whatever], persistent [0|1], subclientid [undefined|''|'...'], echo [0|1]) 
 function join(name [string], persistent [0|1])
@@ -40,11 +29,10 @@ function leave(name [string])</pre>
 <p>The callbacks have signatures</p>
 <pre>function connectcallback(ok [boolean], info [object])
 function valuecallback(value [whatever])</pre>
-<p>Don't forget to wait until this script is loaded too (in the above loaded callback)...</p>
-<pre>addScriptFile("http://teaching.cs.nott.ac.uk:49891/client/client.js", 
-    function() {
-    	// loaded...
-    });
-</pre>
+<p>It is probably easiest to copy the content of appfurnace.js into you Code panel and then customise it as 
+required.</p>
+<p>I can't guarantee that the server on <a href="http://teaching.cs.nott.ac.uk:49891">http://teaching.cs.nott.ac.uk:49891</a> 
+will be available at all times, especially over the vacation. So you should also consider setting up and using your own
+instance from the sourcecode - <a href="https://github.com/cgreenhalgh/ubiserverjs">https://github.com/cgreenhalgh/ubiserverjs</a></p>
 </body>
 </html>
