@@ -14,7 +14,8 @@ var logmessage = function(direction,message,arguments) {
 
 // create connection...!
 function connect(clientname,group,log,connectcallback,valuecallback) {
-	socket = io.connect('http://:49891');
+	// flash didn't seem to work on my mobile! 
+	socket = io.connect('http://:49891', {transports: [ 'websocket', 'htmlfile', 'xhr-polling', 'jsonp-polling' ]});
 	socket.on('connect', function() {
 		// hello
 		var newclient = { version: version, name: clientname, g: group, log: ((log!==undefined && log) ? 1 : 0) };
