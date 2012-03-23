@@ -77,8 +77,8 @@
 				v = JSON.parse(sval);
 		}
 		catch (e) {
-			alert('Value not well-formed ('+sval+'): '+e.message);
-			return;
+			alert('Value not well-formed ('+sval+'): '+e.message+' (JSON='+JSON+')');
+			v = sval;
 		}
 		var c = ($('#cmdcflag').attr('checked')) ? $('#cmdc').val() : undefined;
 		var e = ($('#cmde').attr('checked')) ? 1 : undefined;
