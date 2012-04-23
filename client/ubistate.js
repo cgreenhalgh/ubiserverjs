@@ -30,15 +30,20 @@
 	State.prototype.begin = function() {
 		this.transaction++;
 	}
+	State.prototype.intransaction = function() {
+		return this.transaction>0;
+	}
 	/** end transaction */
-	State.prototype.end = function() {
+	State.prototype.end = function(opttimestamp) {
 		this.transaction--;
 		if (this.transaction<0) {
 			console.log('Too many State.end');
 			this.transaction = 0;
 		}
 		if (this.transaction==0) {
-			var newtimestamp = new Date().getTime();
+			var newtimestamp = opttimestamp;
+			if (newtimestamp===undefined) 
+				newtimestamp = new Date().getTime();
 			if (newtimestamp<=this.timestamp) {
 				console.log('Note: new timestamp would have been lower/unchanged: '+newtimestamp);
 				newtimestamp = this.timestamp+1;
@@ -142,46 +147,28 @@
 		this.check();
 	}
 	
-	Sender.prototype.check = function() {
-		var awaitingack = false;
-		for (var key in this.stateawaitingack) {
-			awaitingack = true;
+	function empty(a) {
+		var yes = true;
+		for (var i in a) {
+			yes = false;
 			break;
 		}
-		if (awaitingack) {
-			if (!this.isconnected) {
-				// these should be noack now
-				for (var ackid in this.stateawaitingack) {
-					var s = this.stateawaitingack[ackid];
-					for (key in s) {
-						this.statenoack[key] = s[key];
-					}
-				}
-				this.stateawaitingack = {};
-				console.log('check: failed awaitingack messages without connection');
-				return;
-			}
-			console.log('check: awaitingack for '+JSON.stringify(this.stateawaitingack));
-			return;
-		}
+		return yes;
+	}
+	
+	Sender.prototype.check = function() {
 		if (!this.isconnected) {
 			console.log('check: not connected');
 			return;
 		}
-		// send unsent
-		var notsent = false;
-		for (key in this.statenotsent) {
-			notsent = true;
-			break;
+		if (!empty(this.stateawaitingack)) {
+			console.log('check: awaitingack for '+JSON.stringify(this.stateawaitingack));
+			return;
 		}
-		if (!notsent) {
+		// send unsent
+		if (empty(this.statenotsent)) {
 			// send unsent
-			var noack = false;
-			for (key in this.statenoack) {
-				noack = true;
-				break;
-			}
-			if (noack) {
+			if (empty(this.statenoack)) {
 				console.log('check: nothing to send');
 				return;
 			}
@@ -202,6 +189,12 @@
 		this.stateawaitingack[ackid] = send;
 		
 		var sendermsg = { ackid: ackid, updates: send };
+		if (empty(this.stateknown))
+			// new state flag
+			sendermsg.newstate = true;
+		// complete update in one... (this is set in the first message of a new update)
+		sendermsg.newupdate = send[TIMESTAMP];
+		
 		this.sendfn(sendermsg);
 		// debug
 		this.dump();
@@ -209,12 +202,54 @@
 	
 	/** notify ack */
 	Sender.prototype.acked = function(ackmsg) {
-		// TODO
+		var ackids = ackmsg.ackids;
+		if (ackids===undefined) {
+			console.log('Warning: ackmsg.ackids undefined: '+JSON.stringify(ackmsg));
+			return;
+		}
+		var docheck = false;
+		for (var i in ackids) {
+			var ackid = ackids[i];
+			var state = this.stateawaitingack[ackid];
+			if (state===undefined) {
+				console.log('received unknown ackid '+ackid+' (nextackid='+this.nextackid+')');
+			} else {
+				console.log('received ack '+ackid);
+				// move to known
+				var timestamp;
+				for (var key in state) {
+					if (key==TIMESTAMP)
+						// don't update timestamp until/unless all updates acked
+						timestamp = state[key];
+					else
+						this.stateknown[key] = state[key];
+				}
+				delete this.stateawaitingack[ackid];
+				if (timestamp!==undefined) {
+					if (empty(this.stateawaitingack) && empty(this.statenoack)) {
+						console.log('know that received '+timestamp);
+						this.stateknown[timestamp] = timestamp;
+					}
+				}
+				docheck = true;
+			}
+		}
+		if (docheck)
+			this.check();
 	}
 	/** notify disconnected */
 	Sender.prototype.disconnected = function() {
 		this.isconnected = false;
 		delete this.sendfn;
+		// these should be noack now
+		for (var ackid in this.stateawaitingack) {
+			var s = this.stateawaitingack[ackid];
+			for (key in s) {
+				this.statenoack[key] = s[key];
+			}
+		}
+		this.stateawaitingack = {};
+		console.log('disconnect: failed awaitingack messages without connection');
 		this.check();
 	}
 	/** notify State updated 
@@ -245,6 +280,10 @@
 	function Receiver() {
 		this.state = new State;
 		this.state.timestamp = 0;
+		this.newstate = true;
+		this.intransaction = false;
+		//this.newupdate
+		//this.newupdateackid
 	}
 	/** get state */
 	Receiver.prototype.state = function() {
@@ -252,7 +291,48 @@
 	}
 	/** handle sendermessage, return optional message (ackmsg) */
 	Receiver.prototype.received = function(sendermsg) {
-		// TODO
+		if (sendermsg.newstate==true) {
+			if (!this.newstate) {
+				this.state = new State;
+				console.log('receiver reset state on newstate');
+			}
+		}
+		var ackids = [];
+		// ackid, updates, newstate?, newupdate?
+		if (sendermsg.newupdate!==undefined) {
+			this.newupdate = sendermsg.newupdate;
+			this.newupdateackid = sendermsg.ackid;
+		} else {
+			// hope in order
+			if (sendermsg.ackid==this.newupdateackid+1)
+				this.newupdateackid = sendermsg.ackid;
+		}
+		ackids.push(sendermsg.ackid);
+		
+		if (!this.intransaction) {
+			this.state.begin();
+			this.intransaction = true;
+		}
+		// handle updates
+		for (var key in sendermsg.updates) {
+			if (key!=TIMESTAMP) {
+				this.state.set(key, sendermsg.updates[key]);
+			}
+		}
+		var timestamp = sendermsg.updates[TIMESTAMP];
+		if (timestamp!==undefined && this.newupdateackid==sendermsg.ackid) {
+			// completed update!
+			this.state.end(timestamp);
+			this.intransaction = false;
+			console.log('updated state to '+timestamp+': '+JSON.stringify(this.state.values));
+		}
+		else
+		{
+			console.log('updated state to intermediate of '+this.newupdate+': '+JSON.stringify(this.state.values));			
+		}
+		
+		if (!empty(ackids))
+			return {ackids:ackids};			
 		return null;
 	}
 })('object' === typeof module ? module.exports : (this.ubistate = {}), this);

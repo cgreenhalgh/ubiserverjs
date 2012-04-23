@@ -92,6 +92,8 @@ io.sockets.on('connection', function(socket) {
 				// needs secret
 				peer.secret = Crypto.util.randomBytes(8);
 				peer.state = conn.state = STATE_PEERED;
+				// peer state receivers, key by sender name
+				peer.receivers = {};
 				peer.serverid = serverid;
 				// add to peers
 				peers[peer.id] = peer;
@@ -143,8 +145,21 @@ io.sockets.on('connection', function(socket) {
 					socket.disconnect();
 					return;
 				}
-				// TODO
 				console.log('sender message '+JSON.stringify(msg));
+				var receiver = conn.peer.receivers[msg.sender];
+				if (receiver===undefined) {
+					if (msg.msg.newstate!=true) {
+						console.log('sender message for unknown receiver '+msg.sender+' not newstate - ignored');
+						return;
+					}
+					receiver = new ubistate.Receiver;
+					conn.peer.receivers[msg.sender] = receiver;
+				}
+				var ackmsg = receiver.received(msg.msg);
+				if (ackmsg!=null) {
+					var repl = {type:'receiver',sender:msg.sender,msg:ackmsg};
+					socket.json.send(repl);
+				}
 			}
 		}
 		// ...

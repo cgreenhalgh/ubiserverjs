@@ -66,12 +66,15 @@ function getPinDigest(nonce, pin) {
 
 //=============================================================================
 
+var RETRY_TIMEOUT = 10000;
+
 function connect_socketio(device, peer) {
 	// Note: don't reconnect at the socket.io level - we'll do it at a higher level
 	// Note: if the initial handshake fails then we don't get any event back - we'd just have to 
 	// set a timeout for the lack of connecting.
+	console.log('connect_socketio...');
 	var socket = io.connect('http://:49891', { transports: [ 'jsonp-polling' ], // 'websocket'
-		reconnect: false, 'connect timeout': 10000 });
+		reconnect: false, 'connect timeout': 10000, 'force new connection':true });
 	peer.socket = socket;
 	peer.connected = false;
 
@@ -79,6 +82,10 @@ function connect_socketio(device, peer) {
 	// also deal with connect_failed, etc.)
 	peer.connectTimeout = setTimeout(function() {
 		logmessage('Event','connect timeout');
+		socket.disconnect();
+		peer.retryTimeout = setTimeout(function() {
+			connect_socketio(device, peer);
+		}, RETRY_TIMEOUT)
 	}, CONNECT_TIMEOUT);
 	
 	socket.on('connect', function() {
@@ -132,8 +139,13 @@ function connect_socketio(device, peer) {
 		logmessage('Event','disconnect','');
 		peer.connected = false;
 		delete peer.socket;
-		if (peer.sender!==undefined)
-			peer.sender.disconnected();
+		for (var senderid in peer.senders) {
+			var sender = peer.senders[senderid];
+			sender.disconnected();
+		}
+		peer.retryTimeout = setTimeout(function() {
+			connect_socketio(device, peer);
+		}, RETRY_TIMEOUT)
 	});
 	socket.on('reconnect', function(transport_type,reconnectionAttempts) {
 		logmessage('Event','reconnect',{transport_type:transport_type,reconnectionAttempts:reconnectionAttempts});
@@ -160,8 +172,10 @@ function connect_socketio(device, peer) {
 				peer.connstate = STATE_PEERED;
 				console.log('Now peered with id='+peer.id+', name='+peer.name);
 				peer.known = true;
-				peer.sender = clientState.sender(peer.id);
-				peer.sender.connected(function(sendermsg) {
+				var defaultSender = clientState.sender(peer.id);
+				peer.senders = {};
+				peer.senders['default'] = defaultSender;
+				defaultSender.connected(function(sendermsg) {
 					var msg = {type: 'sender', sender: 'default', msg: sendermsg};
 					socket.json.send(msg);
 					logmessage('Send', 'sender', msg);
@@ -188,6 +202,20 @@ function connect_socketio(device, peer) {
 					return;
 				}
 				// TODO
+			}
+			else if (msg.type=='receiver') {
+				// sender,msg
+				if (msg.sender===undefined || msg.msg===undefined) {
+					console.log('incomplete receiver message ('+JSON.stringify(msg)+')');
+					socket.disconnect();
+					return;
+				}
+				var sender = peer.senders[msg.sender];
+				if (sender===undefined) {
+					console.log('reveiver message for unknown sender '+msg.sender);
+					return;
+				}
+				sender.acked(msg.msg);
 			}
 		}
     });
@@ -220,4 +248,6 @@ function disconnect() {
 		peer.socket.disconnect();
 		logmessage('Sent', 'disconnect');
 	}
+	clearTimeout(peer.connectTimeout);
+	clearTimeout(peer.retryTimeout);
 }
