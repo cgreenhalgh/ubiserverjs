@@ -24,8 +24,14 @@
 		this.transactionupdates = {};
 		this.transaction = 0;
 		this.timestamp = new Date().getTime();
+		this.listeners = [];
 	}
-	
+
+	/** register listener.
+	 * @param callback function with signature (updates,timestamp,values) */
+	State.prototype.onchange = function(callback) {
+		this.listeners.push(callback);
+	}
 	/** begin transaction */
 	State.prototype.begin = function() {
 		this.transaction++;
@@ -54,12 +60,21 @@
 				var sender = this.senders[peerid];
 				sender.updated(this.transactionupdates, this.timestamp);
 			}
+			// notify listeners
+			for (var listenerid in this.listeners) {
+				try {
+					this.listeners[listenerid](this.transactionupdates, this.timestamp, this.values);
+				}
+				catch (err) {
+					console.log('Error in state listener: '+err.message);
+				}
+			}
 			this.transactionupdates = {};
 		}
 	}
 	/** set key/value */
 	State.prototype.set = function(key,value,fn) {
-		var intransaction = this.transaction==0;
+		var intransaction = this.transaction>0;
 		if (!intransaction)
 			this.begin();
 		if (value==null || value===undefined) {

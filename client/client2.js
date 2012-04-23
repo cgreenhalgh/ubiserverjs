@@ -22,9 +22,18 @@ var CONNECT_TIMEOUT = 5000;
 var STATE_NEW = 1;
 var STATE_PEER_REQ = 2;
 var STATE_PEERED = 3;
+var STATE_CONFIRM_UNTRUSTED = 4;
 
 // auto-shared client state
 var clientState = new ubistate.State;
+peer.senders = {};
+peer.receivers = {};
+
+var SUBSCRIPTIONS = '_SUBSCRIPTIONS';
+var SENDERS = 'senders';
+var subscriptions= new ubistate.State;
+peer.senders[SUBSCRIPTIONS] = subscriptions.sender('server');
+
 
 //=============================================================================
 // util stuff
@@ -120,9 +129,18 @@ function connect_socketio(device, peer) {
 			peer.connstate = STATE_PEER_REQ;
 		}
 		else {
-			// todo...
-			console.log('Connect to known peer unimplemented');
-			socket.disconnect();
+			// known peer (unless it has crashed/restarted)
+			// send init_confirm_untrusted
+			var m = {
+					type: 'init_confirm_untrusted',	
+					id: device.id,
+					confirmid: peer.id,
+					name: device.name,
+					version: version,
+			};
+			socket.json.send(m);
+			logmessage('Send', 'init_confirm_untrusted', m);
+			peer.connstate = STATE_CONFIRM_UNTRUSTED;
 		}
 	});
 	socket.on('connecting', function(transport_type) {
@@ -158,7 +176,7 @@ function connect_socketio(device, peer) {
 	});
     socket.on('message', function (msg) {
 		logmessage('Recv','message',msg);
-		if (peer.connstate==STATE_PEER_REQ) {
+		if (peer.connstate==STATE_PEER_REQ || peer.connstate==STATE_CONFIRM_UNTRUSTED) {
 			if (msg.type=='resp_peer_nopin') {
 				// id, name, info? secret
 				if (msg.id===undefined || msg.name===undefined || msg.secret===undefined) {
@@ -172,21 +190,26 @@ function connect_socketio(device, peer) {
 				peer.connstate = STATE_PEERED;
 				console.log('Now peered with id='+peer.id+', name='+peer.name);
 				peer.known = true;
-				var defaultSender = clientState.sender(peer.id);
-				peer.senders = {};
-				peer.senders['default'] = defaultSender;
-				defaultSender.connected(function(sendermsg) {
-					var msg = {type: 'sender', sender: 'default', msg: sendermsg};
-					socket.json.send(msg);
-					logmessage('Send', 'sender', msg);
-				});
+				for (var senderid in peer.senders) {
+					var sender = peer.senders[senderid];
+					sender.connected(function(sendermsg) {
+						var msg = {type: 'sender', sender: senderid, msg: sendermsg};
+						socket.json.send(msg);
+						logmessage('Send', 'sender', msg);
+					});
+				}
 			}
 			else if (msg.type=='resp_peer_known') {
 				// id, name, challenge1resp, challenge2
 				// but in this case we should have sent init_confirm !
 				
 			}
-			else {
+			else if (msg.type=='reject') {
+				console.log('state STATE_PEER_REQ/CONFIRM_UNTRUSTED rejected: '+msg.message);
+				// NB probably unrecoverable!!
+				disconnect();
+				return;
+			} else {
 				console.log('state STATE_PEER_REQ got '+msg.type);
 				socket.disconnect();
 				return;
@@ -201,7 +224,21 @@ function connect_socketio(device, peer) {
 					socket.disconnect();
 					return;
 				}
-				// TODO
+				//console.log('sender message '+JSON.stringify(msg));
+				var receiver = peer.receivers[msg.sender];
+				if (receiver===undefined) {
+					if (msg.msg.newstate!=true) {
+						console.log('sender message for unknown receiver '+msg.sender+' not newstate - ignored');
+						return;
+					}
+					receiver = new ubistate.Receiver;
+					peer.receivers[msg.sender] = receiver;
+				}
+				var ackmsg = receiver.received(msg.msg);
+				if (ackmsg!=null) {
+					var repl = {type:'receiver',sender:msg.sender,msg:ackmsg};
+					socket.json.send(repl);
+				}
 			}
 			else if (msg.type=='receiver') {
 				// sender,msg
@@ -240,6 +277,14 @@ function connect(id, name, group) {
 	clientState.set('group',group);
 	clientState.end();
 	
+	peer.senders[group] = clientState.sender('server');
+	
+	// subscribe to GROUP
+	subscriptions.set(SENDERS,group);
+	subscriptions.get(SENDERS,function(value) {
+		console.log('Initial value of SENDERS is '+value);
+	})
+	
 	connect_socketio(device, peer);
 }
 
@@ -251,3 +296,4 @@ function disconnect() {
 	clearTimeout(peer.connectTimeout);
 	clearTimeout(peer.retryTimeout);
 }
+
